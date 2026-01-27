@@ -28,25 +28,55 @@ jobs:
         if: steps.changed_files.outputs.files != ''
         run: |
           REPORT=""
+          FAIL_FLAG=0
+          NEEDS_DOC=0
+
           for FILE in ${{ steps.changed_files.outputs.files }}; do
             CONTENT=$(cat "$FILE")
-            REVIEW=$(echo "$CONTENT" | \
-              gh api graphql -f query='
-                mutation($body:String!) {
-                  aiReview: copilotReview(input:{prompt:$body}) {
-                    result
-                  }
-                }' -f body="
+
+            OUTPUT=$(echo "$CONTENT" | gh api graphql -f query='
+              mutation($body:String!) {
+                aiReview: copilotReview(input:{prompt:$body}) {
+                  result
+                }
+              }' -f body="
 MODE: REVIEW
 SCRIPT:
 $CONTENT
 OUTPUT_FORMAT: markdown
 ")
-            REPORT="$REPORT\n\n### Review for \`$FILE\`\n$REVIEW"
+
+            REPORT="$REPORT\n\n### Review for \`$FILE\`\n$OUTPUT"
+
+            SCORE=$(echo "$OUTPUT" | grep -i "Overall Weighted Score" | grep -oE '[0-9]+\.[0-9]+')
+            RISK=$(echo "$OUTPUT" | grep -i "Risk Score" | grep -oE '[0-9]+')
+
+            if (( $(echo "$SCORE < 7.0" | bc -l) )) || [ "$RISK" -gt 50 ]; then
+              FAIL_FLAG=1
+              NEEDS_DOC=1
+            fi
           done
+
+          echo -e "$REPORT" > documentation-review.md
+          echo "report-file=documentation-review.md" >> $GITHUB_OUTPUT
+          echo "needs-doc=$NEEDS_DOC" >> $GITHUB_OUTPUT
+          echo "fail-flag=$FAIL_FLAG" >> $GITHUB_OUTPUT
           echo "report<<EOF" >> $GITHUB_OUTPUT
           echo -e "$REPORT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload documentation review artifact
+        if: steps.changed_files.outputs.files != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-review
+          path: documentation-review.md
+
+      - name: Add documentation-needed label
+        if: steps.review.outputs.needs-doc == '1'
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: documentation-needed
 
       - name: Post PR comment
         if: steps.changed_files.outputs.files != ''
@@ -56,3 +86,9 @@ OUTPUT_FORMAT: markdown
           message: |
             ## 📄 Script Documentation Review Report
             ${{ steps.review.outputs.report }}
+
+      - name: Fail PR if documentation is weak
+        if: steps.review.outputs.fail-flag == '1'
+        run: |
+          echo "Documentation quality below required threshold."
+          exit 1
