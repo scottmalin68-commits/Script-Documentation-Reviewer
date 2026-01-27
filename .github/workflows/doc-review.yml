@@ -1,3 +1,50 @@
+# ============================================================
+# Script Documentation Review Workflow
+# Version: 1.0
+# Author: Scott M
+# Last Updated: 2026-01-27
+#
+# GOAL:
+#   Automatically review documentation quality for scripts
+#   (PowerShell, Python, Bash, etc.) in pull requests.
+#
+# WHAT THIS WORKFLOW DOES:
+#   - Detects changed script files in a PR
+#   - Sends each script to the Script Documentation Reviewer (REVIEW mode)
+#   - Generates a full documentation audit report
+#   - Posts the report as a PR comment
+#   - Uploads the report as a build artifact
+#   - Adds a "documentation-needed" label if quality is below threshold
+#   - FAILS the PR if documentation does not meet required standards
+#
+# THRESHOLDS:
+#   - Weighted Score < 7.0  → FAIL
+#   - Risk Score > 50       → FAIL
+#
+# SUPPORTED FILE TYPES:
+#   - .ps1, .psm1 (PowerShell)
+#   - .py (Python)
+#   - .sh, .bash, .zsh (Shell scripts)
+#
+# OUTPUTS:
+#   - PR comment with detailed review
+#   - documentation-review.md artifact
+#   - documentation-needed label (if required)
+#
+# AUDIENCE:
+#   - Automation engineers
+#   - Security engineers
+#   - DevOps teams
+#   - Anyone maintaining script-heavy repos
+#
+# CHANGELOG:
+#   v1.0 - Initial release with:
+#          - PR comment reporting
+#          - Artifact upload
+#          - Labeling
+#          - Merge blocking
+# ============================================================
+
 name: Script Documentation Review
 
 on:
