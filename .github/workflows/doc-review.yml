@@ -1,0 +1,58 @@
+name: Script Documentation Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Identify changed script files
+        id: changed_files
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }} \
+            | grep -E '\.(ps1|psm1|py|sh|bash|zsh)$' || true)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Stop if no scripts changed
+        if: steps.changed_files.outputs.files == ''
+        run: echo "No script files changed. Skipping review."
+
+      - name: Run Script Documentation Reviewer
+        id: review
+        if: steps.changed_files.outputs.files != ''
+        run: |
+          REPORT=""
+          for FILE in ${{ steps.changed_files.outputs.files }}; do
+            CONTENT=$(cat "$FILE")
+            REVIEW=$(echo "$CONTENT" | \
+              gh api graphql -f query='
+                mutation($body:String!) {
+                  aiReview: copilotReview(input:{prompt:$body}) {
+                    result
+                  }
+                }' -f body="
+MODE: REVIEW
+SCRIPT:
+$CONTENT
+OUTPUT_FORMAT: markdown
+")
+            REPORT="$REPORT\n\n### Review for \`$FILE\`\n$REVIEW"
+          done
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$REPORT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        if: steps.changed_files.outputs.files != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: script-doc-review
+          message: |
+            ## 📄 Script Documentation Review Report
+            ${{ steps.review.outputs.report }}
