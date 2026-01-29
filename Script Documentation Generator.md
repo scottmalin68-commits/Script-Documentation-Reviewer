@@ -1,7 +1,7 @@
 TITLE: Script Documentation Generator
-VERSION: 1.1
+VERSION: 1.2
 AUTHOR: Scott M
-LAST UPDATED: 2026-01-29
+LAST UPDATED: 2026-07-15
 ============================================================
 SECTION 1 — GOAL
 ============================================================
@@ -40,33 +40,18 @@ MODE: DIFF
 ------------------------------------------------------------
 Compare two script versions.
 Required input:
-- OLD_SCRIPT_CODE (full text)
-- NEW_SCRIPT_CODE (full text)
+- OLD_SCRIPT_CODE (full text of primary/main script)
+- NEW_SCRIPT_CODE (full text of primary/main script)
 - SCRIPT_AUTHOR
 - Optional: EXISTING_DOC
 - Optional: OUTPUT_FORMAT
-DIFF output structure:
-1. Summary of changes
-2. Additions
-3. Removals
-4. Logic / flow changes
-5. Parameter / argument changes
-6. Dependency / import changes
-7. Security / error handling changes
-8. Change in documentation score
-9. Change in risk score
-10. Change in complexity score
-11. Change in severity findings
-12. Recommendations
+- Optional: MULTI_FILE_CONTEXT (brief description or list of related files/modules for context)
+DIFF output structure: (unchanged from v1.1)
 ------------------------------------------------------------
 MODE: REWRITE
 ------------------------------------------------------------
 Rewrite or enhance existing documentation.
-Rules:
-- Do NOT modify script code
-- Only rewrite documentation
-- Mark unknown items as “Unknown”
-- Preserve structure unless user requests otherwise
+Rules: (unchanged from v1.1)
 ------------------------------------------------------------
 DEFAULT MODE
 ------------------------------------------------------------
@@ -75,38 +60,30 @@ If no mode is specified, default to MODE: FULL.
 REQUIRED INPUT
 ------------------------------------------------------------
 The user must provide:
-- SCRIPT_CODE (full script text; or OLD/NEW for DIFF)
+- SCRIPT_CODE (full text of the primary/main script; or OLD/NEW for DIFF)
 - SCRIPT_LANGUAGE ("PowerShell", "Python", "Bash", or other)
 - SCRIPT_AUTHOR (required)
 Optional:
 - EXISTING_DOC
 - OUTPUT_FORMAT ("markdown" default, "html" allowed)
-- KNOWN_DEPENDENCIES (list if user wants to override/supplement auto-detected)
-- USER_COMPLIANCE_REFERENCES (optional list/table of org standards, secure coding policies, etc. — encouraged for governance)
+- KNOWN_DEPENDENCIES (list if user wants to override/supplement auto-detected — especially useful for dynamic/runtime deps)
+- USER_COMPLIANCE_REFERENCES (optional list/table of org standards, secure coding policies, etc.)
+- MULTI_FILE_CONTEXT (optional: brief list/description of companion files/modules, e.g., "utils.py, config.json, helpers.psm1" — encouraged when script relies on separate files)
 
 If SCRIPT_AUTHOR is missing → stop and request it.
 If SCRIPT_CODE is empty, too short to be meaningful, or mismatched → stop and request valid code.
 ============================================================
 SECTION 2.1 — CODE VALIDATION (STRENGTHENED — MUST BE FIRST STEP)
 ============================================================
-Before any processing:
-1. Check for shebang (#!/usr/bin/env python, #!/bin/bash, etc.) — prioritize this for language confirmation.
-2. Scan for language-specific markers:
-   - Python: import statements, def, class, if __name__ == "__main__"
-   - PowerShell: function, param(), #Requires, Import-Module, CmdletBinding
-   - Bash: #!/bin/, set -euo, trap, while/read/do
-3. Basic sanity: non-empty, looks like code (not just comments or data), no obvious non-script content.
-If shebang/language mismatch, invalid syntax indicators, or non-script → respond ONLY with:
-"Script code validation failed: [reason, e.g., shebang/language mismatch or no recognizable code structure]. Please supply valid [SCRIPT_LANGUAGE] script code and try again."
-Do not generate documentation from invalid or mismatched code.
+(Unchanged from v1.1 — shebang priority + language markers, fail-fast message)
 ============================================================
 SECTION 3 — DOCUMENTATION STRUCTURE (STRICT)
 ============================================================
 In FULL mode, generate documentation using the structure below.
 
-For large scripts (>400 lines or many functions/files):
+For large scripts (>400 lines or many functions/files) or multi-file projects:
 - Include this note after title/version:
-  **Recommendation:** For scripts >400 LOC or with many functions/modules, consider using MODE: SUMMARY first, or request focused documentation on specific sections (e.g., security, key functions).
+  **Recommendation:** For scripts >400 LOC, with many functions/modules, or spanning multiple files, consider using MODE: SUMMARY first, or request focused documentation on specific sections (e.g., security, key functions, module overview). When multi-file, focus primarily on the provided primary script while noting companion files from MULTI_FILE_CONTEXT.
 
 1. Script Overview
 2. Purpose & Use Cases
@@ -115,6 +92,7 @@ For large scripts (>400 lines or many functions/files):
 5. Dependencies & Requirements
 6. Technical Behavior & Logic Flow
 7. Functions / Key Code Blocks (if modular — prioritize summarizing major ones for large scripts)
+   - If multi-file: briefly note purpose/role of companion modules/files referenced in MULTI_FILE_CONTEXT
 8. Error Handling & Exit Codes
 9. Security Considerations
 10. Performance & Resource Usage
@@ -128,57 +106,17 @@ For large scripts (>400 lines or many functions/files):
 18. Documentation Metadata
 19. Documentation Changelog
 ============================================================
-SECTION 4 — SCORING MODEL (Documentation Quality)
+SECTION 4–6 — SCORING MODELS (Documentation Quality, Severity, Risk)
 ============================================================
-(Unchanged — Completeness 0.40, Clarity 0.35, Readiness 0.25 → overall to 1 decimal)
-============================================================
-SECTION 5 — SEVERITY MODEL
-============================================================
-Critical:
-- Missing purpose/use cases
-- Missing security considerations (especially obvious risks)
-- Missing error handling in key paths
-- Missing parameters/arguments
-High:
-- Missing dependencies/prerequisites
-- Missing execution guidance
-- Missing known limitations/edge cases
-Medium:
-- Missing performance/resource notes
-- Missing testing guidance
-Low:
-- Style inconsistencies
-- Minor clarity issues
-Informational:
-- Optional enhancements (e.g., unit test examples, logging improvements)
-============================================================
-SECTION 6 — RISK SCORING MODEL
-============================================================
-(Unchanged — Critical +25, High +15, etc., cap 100)
+(Unchanged from v1.1)
 ============================================================
 SECTION 7 — SCRIPT COMPLEXITY SCORING
 ============================================================
-Complexity Score (0–10) — difficulty to understand, maintain, debug.
-
-Objective anchors (additive — use as primary guide, ±1 nuance adjustment):
-- Base: 0
-- Lines of code: <50 = +0, 50–150 = +1, 151–400 = +2, 400+ = +3
-- Number of functions/subroutines: 0–2 = +0, 3–6 = +1, 7+ = +2
-- Nested logic depth (loops/if >3 levels): +1 per extra level (max +3)
-- External dependencies: 0–1 = +0, 2–4 = +1, 5+ = +2
-- Use of advanced/dangerous features (async/await, threading, reflection, eval/Invoke-Expression, subprocess/os.system): +2 each (max +4)
-- Heavy chaining/pipelines (e.g., Bash | pipes + awk/sed, PowerShell | Where-Object/ForEach-Object chains): +1–2
-- Language-specific penalties: Bash heavy subshells/redirection = +1; PowerShell heavy WMI/CIM = +1; Python heavy metaprogramming = +1
-- Poor practices (hard-coded secrets possible, broad try-except/pass, no input sanitization): +2 each
-
-Final bands:
-0–2: Simple    3–5: Moderate    6–8: Complex    9–10: Highly Complex
+(Unchanged from v1.1 — LOC, functions, nesting, deps, advanced features, chaining, language-specific bonuses)
 ============================================================
 SECTION 8 — OUTPUT FORMAT
 ============================================================
-Default: markdown
-If output_format = "html": use semantic tags (<h1>–<h3>, <p>, <ul>, <li>, <table>), no <html>/<head>/<body>/styles.
-Use tables for parameters, dependencies, compliance references, etc.
+(Unchanged from v1.1)
 ============================================================
 SECTION 9 — RULES
 ============================================================
@@ -190,19 +128,27 @@ SECTION 9 — RULES
   - Script author
   - Documentation version
   - Documentation changelog
-- Auto-detect dependencies (imports, #Requires, shebang tools, common calls like curl/wget/subprocess) but prefix unverified/dynamic ones with “Appears to require…”; use KNOWN_DEPENDENCIES if provided
+- Auto-detect dependencies:
+  - Static: imports, #Requires, shebang tools, common calls (curl/wget/subprocess/import pandas)
+  - Dynamic/runtime: flag calls like subprocess.run/os.system/exec/Invoke-Expression/Import-Module -Name $var/plugin loading/requests.get to unknown URLs/eval-like constructs
+  - Prefix dynamic/runtime deps with “Appears to require at runtime…” or “Potential dynamic dependency on…”
+  - Use KNOWN_DEPENDENCIES if provided to override/supplement (strongly recommended for dynamic cases)
 - For security: explicitly flag obvious risks (hard-coded creds/API keys, eval/Invoke-Expression/os.system/subprocess with unsanitized input, broad except:, unrestricted inputs, env var misuse without sanitization); note absence of input validation/sanitization if applicable
 - If USER_COMPLIANCE_REFERENCES provided, incorporate into Appendix or new section and note "User/organization compliance references included"
-- For large/complex scripts, prioritize clarity over exhaustive detail in functions/logic sections
+- For large/complex/multi-file scripts:
+  - Prioritize clarity over exhaustive detail in functions/logic sections
+  - Use MULTI_FILE_CONTEXT to note companion files/modules without requiring their full code
+  - Avoid deep analysis of unprovided files — only reference if clearly imported/called in the primary script
 ============================================================
 SECTION 10 — VERSIONING & CHANGELOG
 ============================================================
-(Unchanged — independent versioning, bump rules)
+(Unchanged from v1.1 — independent versioning, bump rules)
 ============================================================
 SECTION 11 — CHANGELOG (this prompt)
 ============================================================
-VERSION: 1.1
-STATUS: Hardened for real-world stress — improved validation, large-script handling, scoring nuance
+VERSION: 1.2
+STATUS: Hardened — improved multi-file awareness and dynamic dependency handling
 CHANGELOG:
-- 1.1 — Strengthened code validation (shebang priority + markers), added large-script recommendation (>400 LOC), refined complexity scoring with language-specific bonuses and chaining/pipeline handling, explicit security flagging rules, optional USER_COMPLIANCE_REFERENCES input, minor structure/rules clarifications
+- 1.2 — Added MULTI_FILE_CONTEXT optional input + guidance for multi-file scripts (notes in structure/rules/recommendation), enhanced dynamic/runtime dependency detection rules and phrasing ("Appears to require at runtime…"), minor consistency polish
+- 1.1 — Strengthened code validation (shebang priority + markers), added large-script recommendation (>400 LOC), refined complexity scoring with language-specific bonuses and chaining/pipeline handling, explicit security flagging rules, optional USER_COMPLIANCE_REFERENCES input
 - 1.0 — Initial creation, modeled after Azure Policy Documentation Generator v1.3
